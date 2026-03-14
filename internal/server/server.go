@@ -151,13 +151,19 @@ func (rr *responseRecorder) WriteHeader(code int) {
 	rr.ResponseWriter.WriteHeader(code)
 }
 
-// loggingMiddleware logs each HTTP request with method, path, status, duration, and remote addr.
+// loggingMiddleware logs each HTTP request (before) and response (after) with
+// method, path, status, duration, and remote addr.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"remote_addr", r.RemoteAddr,
+		)
 		start := time.Now()
 		rr := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rr, r)
-		slog.Info("http request",
+		slog.Info("http response",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rr.status,
