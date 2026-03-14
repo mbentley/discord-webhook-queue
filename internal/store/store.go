@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -28,6 +30,17 @@ type Store struct {
 
 // Open opens (or creates) the SQLite database at path and initializes the schema.
 func Open(path string) (*Store, error) {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("data directory %q does not exist (running as uid:gid %d:%d): create it and set ownership accordingly", dir, os.Getuid(), os.Getgid())
+	}
+	tmp, err := os.CreateTemp(dir, ".write-test-*")
+	if err != nil {
+		return nil, fmt.Errorf("data directory %q is not writable (running as uid:gid %d:%d): check ownership and permissions", dir, os.Getuid(), os.Getgid())
+	}
+	tmp.Close()
+	os.Remove(tmp.Name())
+
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)

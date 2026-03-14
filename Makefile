@@ -28,13 +28,15 @@ build-prod:
 # Primary dev workflow: native build (arm64 on ARM Mac) and run.
 run:
 	docker build -t $(IMAGE):dev .
+	docker volume create $(IMAGE)-data
+	docker run --rm -v $(IMAGE)-data:/data --user root --entrypoint chown $(IMAGE):dev 523:523 /data
 	docker run --rm \
 		-p 8080:8080 \
-		-v discord-webhook-queue-data:/data \
+		-v $(IMAGE)-data:/data \
 		--user 523:523 \
 		--env-file .env \
 		$(IMAGE):dev
 
 clean:
 	docker rmi $(IMAGE):dev $(IMAGE):latest 2>/dev/null || true
-	docker volume rm discord-webhook-queue-data 2>/dev/null || true
+	docker volume rm $(IMAGE)-data 2>/dev/null || true
