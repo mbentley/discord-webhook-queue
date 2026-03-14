@@ -60,7 +60,7 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 
 	srv.http = &http.Server{
 		Addr:    cfg.ListenAddr,
-		Handler: mux,
+		Handler: loggingMiddleware(mux),
 		// Generous read timeout to accommodate large multipart uploads (e.g. Grafana images).
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -139,6 +139,33 @@ type pipeConn struct {
 }
 
 func (c *pipeConn) Read(b []byte) (int, error) { return c.r.Read(b) }
+
+// responseRecorder wraps http.ResponseWriter to capture the status code.
+type responseRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rr *responseRecorder) WriteHeader(code int) {
+	rr.status = code
+	rr.ResponseWriter.WriteHeader(code)
+}
+
+// loggingMiddleware logs each HTTP request with method, path, status, duration, and remote addr.
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rr := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rr, r)
+		slog.Info("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rr.status,
+			"duration", time.Since(start),
+			"remote_addr", r.RemoteAddr,
+		)
+	})
+}
 
 // Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
