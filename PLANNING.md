@@ -24,8 +24,9 @@ A local Discord message queue daemon that acts as a drop-in replacement for Disc
 ## Section 2: Delivery Requirements
 
 ### Ordering
-- Single global queue ordered by receipt timestamp (FIFO)
-- All messages across all channels/webhooks share one ordered queue
+- Single global queue; strict FIFO is not required
+- When in probing mode, always attempt the oldest message first (by `received_at`)
+- In healthy mode, messages may be processed with concurrency for throughput
 
 ### Deduplication
 - None — every received message is delivered exactly once, no duplicate detection
@@ -37,6 +38,7 @@ The daemon operates in one of two states:
 **Healthy mode:**
 - Deliver messages as fast as possible within Discord's rate limits
 - Full concurrency/throughput
+- Parse Discord `X-RateLimit-*` response headers and honor `Retry-After` on HTTP 429
 
 **Probing mode (entered on delivery failure):**
 - Send one message at a time
@@ -49,11 +51,14 @@ The daemon operates in one of two states:
 - A sensible default retry interval is provided out of the box
 
 ### Failure Alerting (SMTP)
-- After a configurable duration of sustained failure, send a plain text email alert
-- Not triggered on every retry — only after the failure threshold duration is exceeded
+- Send one alert email after 15 minutes of sustained failure (hardcoded default, not configurable)
+- One email per outage instance — do not repeat while Discord remains continuously unhealthy, except:
+  - If Discord stays unhealthy, re-alert every 24 hours
+  - If Discord recovers and then fails again, treat it as a new outage instance and alert again after 15 minutes
 - Email content:
   - Subject includes a configurable identifier (tool name + host label) so it's clear where the alert originates
   - Body includes: how long the failure has been occurring, current pending queue depth, and instructions to check `/status`
+- SMTP is assumed to have its own delivery redundancy; daemon sends and forgets
 - SMTP configuration:
   - Host, port, from address, to address — all configurable
   - STARTTLS: optional (configurable on/off)
@@ -117,12 +122,15 @@ messages:
   received_at   DATETIME NOT NULL          -- ordering key
   webhook_id    TEXT NOT NULL              -- from URL path ({id})
   webhook_token TEXT NOT NULL             -- from URL path ({token})
-  content_type  TEXT NOT NULL             -- application/json or multipart/form-data
+  content_type  TEXT NOT NULL             -- full Content-Type header value (includes multipart boundary)
   payload       BLOB NOT NULL             -- raw request body
+  status        TEXT DEFAULT 'pending'    -- pending | in_flight | sent
   retry_count   INTEGER DEFAULT 0
   last_error    TEXT
   last_attempt  DATETIME
 ```
+
+**Crash recovery:** On startup, any messages with `status = 'in_flight'` are reset to `pending`. Mid-send crashes are assumed to be undelivered and will be retried.
 
 ---
 
@@ -143,11 +151,11 @@ POST /webhooks/{id}/{token}
 ```
 GET /status
 ```
-Returns:
-- Daemon health state (`healthy` or `probing`)
-- Current queue depth (total pending messages)
-- Last failure time/date
-- (Optional) per-webhook pending counts
+- Always returns HTTP 200 with a JSON body
+- Response includes:
+  - Daemon health state (`healthy` or `probing`)
+  - Current queue depth (total pending + in_flight messages)
+  - Last failure time/date (null if never failed)
 
 ### Metrics Endpoint
 ```

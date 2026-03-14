@@ -1,0 +1,17 @@
+services:
+  discord-queue:
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    image: discord-queue:dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - queue-data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  queue-data:
