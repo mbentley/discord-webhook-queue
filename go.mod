@@ -1,4 +1,4 @@
-module github.com/mbentley/discord-queue
+module github.com/mbentley/discord-webhook-queue
 
 go 1.26.0
 

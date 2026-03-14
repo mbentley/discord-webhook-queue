@@ -1,4 +1,4 @@
-IMAGE     := discord-queue
+IMAGE     := discord-webhook-queue
 GO_IMAGE  := golang:1.26-alpine
 
 .PHONY: mod-tidy build-dev build-prod run clean
@@ -20,10 +20,10 @@ run:
 	docker build -t $(IMAGE):dev .
 	docker run --rm \
 		-p 8080:8080 \
-		-v discord-queue-data:/data \
+		-v discord-webhook-queue-data:/data \
 		--env-file .env \
 		$(IMAGE):dev
 
 clean:
 	docker rmi $(IMAGE):dev $(IMAGE):latest 2>/dev/null || true
-	docker volume rm discord-queue-data 2>/dev/null || true
+	docker volume rm discord-webhook-queue-data 2>/dev/null || true

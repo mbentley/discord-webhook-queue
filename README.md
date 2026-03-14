@@ -1,4 +1,4 @@
-# discord-queue
+# discord-webhook-queue
 
 A local Discord webhook queue daemon. It acts as a drop-in replacement for Discord webhook URLs, accepting messages from any sender (scripts, Grafana, monitoring tools, etc.), storing them durably, and forwarding them to Discord with automatic retry and rate limit handling.
 
@@ -24,10 +24,10 @@ Messages are stored in an embedded SQLite database and survive daemon restarts. 
 
 ```bash
 docker run -d \
-  --name discord-queue \
+  --name discord-webhook-queue \
   -p 8080:8080 \
-  -v discord-queue-data:/data \
-  mbentley/discord-queue
+  -v discord-webhook-queue-data:/data \
+  mbentley/discord-webhook-queue
 ```
 
 ## Configuration
@@ -56,15 +56,15 @@ Email alerts fire after 15 minutes of sustained delivery failure, then every 24 
 
 ```yaml
 services:
-  discord-queue:
-    image: mbentley/discord-queue
+  discord-webhook-queue:
+    image: mbentley/discord-webhook-queue
     ports:
       - "8080:8080"
     volumes:
       - queue-data:/data
     environment:
       SMTP_HOST: mail.example.com
-      SMTP_FROM: discord-queue@example.com
+      SMTP_FROM: discord-webhook-queue@example.com
       SMTP_TO: alerts@example.com
       ALERT_HOST_LABEL: my-server
     restart: unless-stopped
@@ -110,7 +110,7 @@ When running behind nginx for SSL termination, a few settings matter:
 ```nginx
 server {
     listen 443 ssl;
-    server_name discord-queue.example.com;
+    server_name discord-webhook-queue.example.com;
 
     # Grafana image attachments can be several MB
     client_max_body_size 20m;

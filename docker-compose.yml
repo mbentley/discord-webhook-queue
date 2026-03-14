@@ -1,10 +1,10 @@
 services:
-  discord-queue:
+  discord-webhook-queue:
     build:
       context: .
       platforms:
         - linux/arm64
-    image: discord-queue:dev
+    image: discord-webhook-queue:dev
     ports:
       - "8080:8080"
     volumes:

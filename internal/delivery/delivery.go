@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mbentley/discord-queue/internal/alert"
-	"github.com/mbentley/discord-queue/internal/config"
-	"github.com/mbentley/discord-queue/internal/metrics"
-	"github.com/mbentley/discord-queue/internal/store"
+	"github.com/mbentley/discord-webhook-queue/internal/alert"
+	"github.com/mbentley/discord-webhook-queue/internal/config"
+	"github.com/mbentley/discord-webhook-queue/internal/metrics"
+	"github.com/mbentley/discord-webhook-queue/internal/store"
 )
 
 type deliveryState int
@@ -209,7 +209,7 @@ func (e *Engine) sendToDiscord(ctx context.Context, msg *store.Message) sendResu
 		return sendResult{kind: kindError, err: fmt.Errorf("build request: %w", err)}
 	}
 	req.Header.Set("Content-Type", msg.ContentType)
-	req.Header.Set("User-Agent", "discord-queue/1.0 (github.com/mbentley/discord-queue)")
+	req.Header.Set("User-Agent", "discord-webhook-queue/1.0 (github.com/mbentley/discord-webhook-queue)")
 
 	resp, err := e.client.Do(req)
 	if err != nil {

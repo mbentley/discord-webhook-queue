@@ -1,4 +1,4 @@
-# discord-queue: Design & Planning
+# discord-webhook-queue: Design & Planning
 
 ## Overview
 
@@ -196,7 +196,7 @@ GET /metrics
 - Telegraf config snippet (for reference):
   ```toml
   [[inputs.prometheus]]
-    urls = ["http://discord-queue:8080/metrics"]
+    urls = ["http://discord-webhook-queue:8080/metrics"]
 
   [[outputs.influxdb]]
     urls = ["http://victoriametrics:8428"]

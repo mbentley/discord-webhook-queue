@@ -14,9 +14,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/mbentley/discord-queue/internal/config"
-	"github.com/mbentley/discord-queue/internal/delivery"
-	"github.com/mbentley/discord-queue/internal/store"
+	"github.com/mbentley/discord-webhook-queue/internal/config"
+	"github.com/mbentley/discord-webhook-queue/internal/delivery"
+	"github.com/mbentley/discord-webhook-queue/internal/store"
 )
 
 // Server is the HTTP server exposing the ingest, status, and metrics endpoints.

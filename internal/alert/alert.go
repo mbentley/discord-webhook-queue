@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mbentley/discord-queue/internal/config"
+	"github.com/mbentley/discord-webhook-queue/internal/config"
 )
 
 // Alerter tracks Discord failure state and sends SMTP alerts when thresholds are crossed.
@@ -91,7 +91,7 @@ func (a *Alerter) sendEmail(failureDuration time.Duration, queueDepth int) error
 	}
 	statusURL := fmt.Sprintf("http://%s:%s/status", a.cfg.AlertHostLabel, port)
 
-	subject := fmt.Sprintf("[discord-queue] %s: Discord delivery failing for %s",
+	subject := fmt.Sprintf("[discord-webhook-queue] %s: Discord delivery failing for %s",
 		a.cfg.AlertHostLabel,
 		failureDuration.Round(time.Second),
 	)
@@ -103,7 +103,7 @@ func (a *Alerter) sendEmail(failureDuration time.Duration, queueDepth int) error
 			"MIME-Version: 1.0\r\n"+
 			"Content-Type: text/plain; charset=utf-8\r\n"+
 			"\r\n"+
-			"discord-queue on %s has been unable to deliver messages to Discord.\r\n"+
+			"discord-webhook-queue on %s has been unable to deliver messages to Discord.\r\n"+
 			"\r\n"+
 			"Failure duration : %s\r\n"+
 			"Pending messages : %d\r\n"+

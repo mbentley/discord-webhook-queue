@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mbentley/discord-queue/internal/alert"
-	"github.com/mbentley/discord-queue/internal/config"
-	"github.com/mbentley/discord-queue/internal/delivery"
-	"github.com/mbentley/discord-queue/internal/metrics"
-	"github.com/mbentley/discord-queue/internal/server"
-	"github.com/mbentley/discord-queue/internal/store"
+	"github.com/mbentley/discord-webhook-queue/internal/alert"
+	"github.com/mbentley/discord-webhook-queue/internal/config"
+	"github.com/mbentley/discord-webhook-queue/internal/delivery"
+	"github.com/mbentley/discord-webhook-queue/internal/metrics"
+	"github.com/mbentley/discord-webhook-queue/internal/server"
+	"github.com/mbentley/discord-webhook-queue/internal/store"
 )
 
 func main() {
