@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/mbentley/discord-webhook-queue/internal/alert"
 	"github.com/mbentley/discord-webhook-queue/internal/config"
 	"github.com/mbentley/discord-webhook-queue/internal/delivery"
 	"github.com/mbentley/discord-webhook-queue/internal/store"
@@ -21,31 +23,39 @@ import (
 
 // Server is the HTTP server exposing the ingest, status, and metrics endpoints.
 type Server struct {
-	cfg    *config.Config
-	store  *store.Store
-	engine *delivery.Engine
-	http   *http.Server
+	cfg     *config.Config
+	store   *store.Store
+	engine  *delivery.Engine
+	alerter *alert.Alerter
+	http    *http.Server
 }
 
 // New creates and configures the HTTP server. Call ListenAndServe to start it.
-func New(cfg *config.Config, s *store.Store, e *delivery.Engine) *Server {
-	srv := &Server{cfg: cfg, store: s, engine: e}
+func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerter) *Server {
+	srv := &Server{cfg: cfg, store: s, engine: e, alerter: a}
 
 	mux := http.NewServeMux()
+
+	// Root info page — no auth, reveals nothing sensitive.
+	mux.HandleFunc("GET /", srv.handleRoot)
 
 	// Ingest endpoint is NEVER auth-gated: senders (discord.sh, Grafana, etc.)
 	// cannot inject custom headers, so requiring a token here would break them.
 	mux.HandleFunc("POST /webhooks/{id}/{token}", srv.handleIngest)
 
-	// Status and metrics endpoints honour the optional auth token.
+	// Status, metrics, and alert-test endpoints honour the optional auth token.
 	if cfg.AuthToken != "" {
 		mux.Handle("GET /metrics", srv.authMiddleware(promhttp.Handler()))
 		mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
 			srv.authMiddleware(http.HandlerFunc(srv.handleStatus)).ServeHTTP(w, r)
 		})
+		mux.HandleFunc("POST /alert/test", func(w http.ResponseWriter, r *http.Request) {
+			srv.authMiddleware(http.HandlerFunc(srv.handleAlertTest)).ServeHTTP(w, r)
+		})
 	} else {
 		mux.Handle("GET /metrics", promhttp.Handler())
 		mux.HandleFunc("GET /status", srv.handleStatus)
+		mux.HandleFunc("POST /alert/test", srv.handleAlertTest)
 	}
 
 	srv.http = &http.Server{
@@ -189,6 +199,35 @@ type statusResponse struct {
 	State         string     `json:"state"`
 	QueueDepth    int        `json:"queue_depth"`
 	LastFailureAt *time.Time `json:"last_failure_at"`
+}
+
+// handleRoot returns a plain-text info page listing available endpoints.
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprintf(w, "discord-webhook-queue\n\n")
+	fmt.Fprintf(w, "Endpoints:\n")
+	fmt.Fprintf(w, "  POST /webhooks/{id}/{token}   Enqueue a Discord webhook message\n")
+	fmt.Fprintf(w, "  GET  /status                  Queue state and depth (JSON)\n")
+	fmt.Fprintf(w, "  GET  /metrics                 Prometheus metrics\n")
+	fmt.Fprintf(w, "  POST /alert/test              Send a test alert email (requires SMTP config)\n")
+}
+
+// handleAlertTest sends a test alert email and returns the result as JSON.
+func (s *Server) handleAlertTest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := s.alerter.SendTest(); err != nil {
+		if err.Error() == "SMTP not configured" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintf(w, `{"error":"SMTP not configured"}`)
+			return
+		}
+		slog.Error("alert test failed", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `{"error":%q}`, err.Error())
+		return
+	}
+	slog.Info("test alert email sent")
+	fmt.Fprintf(w, `{"ok":true}`)
 }
 
 // handleStatus returns the current daemon state as JSON. Always 200.

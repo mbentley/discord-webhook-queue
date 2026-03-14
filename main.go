@@ -49,7 +49,7 @@ func main() {
 
 	a := alert.New(cfg)
 	e := delivery.New(s, cfg, m, a)
-	srv := server.New(cfg, s, e)
+	srv := server.New(cfg, s, e, a)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup

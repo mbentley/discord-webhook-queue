@@ -126,9 +126,11 @@ services:
 
 | Endpoint | Description |
 |---|---|
+| `GET /` | Info page listing available endpoints. |
 | `POST /webhooks/{id}/{token}` | Enqueue a Discord webhook message. Accepts `application/json` and `multipart/form-data`. Returns 204. |
 | `GET /status` | Returns daemon state, queue depth, and last failure time as JSON. Always 200. |
 | `GET /metrics` | Prometheus metrics. Scrape with Telegraf `inputs.prometheus` or any compatible collector. |
+| `POST /alert/test` | Send a test alert email to verify SMTP configuration. Returns 200 on success, 503 if SMTP is not configured. |
 
 ### Status response
 

@@ -96,28 +96,65 @@ func (a *Alerter) sendEmail(failureDuration time.Duration, queueDepth int) error
 		failureDuration.Round(time.Second),
 	)
 
-	body := fmt.Sprintf(
+	msg := a.buildMessage(subject,
+		fmt.Sprintf(
+			"discord-webhook-queue on %s has been unable to deliver messages to Discord.\r\n"+
+				"\r\n"+
+				"Failure duration : %s\r\n"+
+				"Pending messages : %d\r\n"+
+				"\r\n"+
+				"Check queue status at: %s\r\n",
+			a.cfg.AlertHostLabel,
+			failureDuration.Round(time.Second),
+			queueDepth,
+			statusURL,
+		),
+	)
+
+	return a.dispatch(msg)
+}
+
+// SendTest sends a test alert email to verify SMTP configuration. Returns an
+// error if SMTP is not configured or if the send fails.
+func (a *Alerter) SendTest() error {
+	if !a.cfg.SMTPEnabled() {
+		return fmt.Errorf("SMTP not configured")
+	}
+
+	subject := fmt.Sprintf("[discord-webhook-queue] %s: TEST alert email", a.cfg.AlertHostLabel)
+
+	msg := a.buildMessage(subject,
+		fmt.Sprintf(
+			"This is a TEST alert from discord-webhook-queue on %s.\r\n"+
+				"\r\n"+
+				"If you received this, your SMTP configuration is working correctly.\r\n"+
+				"\r\n"+
+				"Failure duration : N/A (test)\r\n"+
+				"Pending messages : 0\r\n",
+			a.cfg.AlertHostLabel,
+		),
+	)
+
+	return a.dispatch(msg)
+}
+
+func (a *Alerter) buildMessage(subject, bodyText string) []byte {
+	return []byte(fmt.Sprintf(
 		"Subject: %s\r\n"+
 			"From: %s\r\n"+
 			"To: %s\r\n"+
 			"MIME-Version: 1.0\r\n"+
 			"Content-Type: text/plain; charset=utf-8\r\n"+
 			"\r\n"+
-			"discord-webhook-queue on %s has been unable to deliver messages to Discord.\r\n"+
-			"\r\n"+
-			"Failure duration : %s\r\n"+
-			"Pending messages : %d\r\n"+
-			"\r\n"+
-			"Check queue status at: %s\r\n",
+			"%s",
 		subject,
 		a.cfg.SMTPFrom,
 		a.cfg.SMTPTo,
-		a.cfg.AlertHostLabel,
-		failureDuration.Round(time.Second),
-		queueDepth,
-		statusURL,
-	)
+		bodyText,
+	))
+}
 
+func (a *Alerter) dispatch(msg []byte) error {
 	addr := fmt.Sprintf("%s:%d", a.cfg.SMTPHost, a.cfg.SMTPPort)
 
 	var auth smtp.Auth
@@ -126,10 +163,10 @@ func (a *Alerter) sendEmail(failureDuration time.Duration, queueDepth int) error
 	}
 
 	if a.cfg.SMTPStartTLS {
-		return sendWithStartTLS(addr, a.cfg.SMTPHost, auth, a.cfg.SMTPFrom, a.cfg.SMTPTo, []byte(body))
+		return sendWithStartTLS(addr, a.cfg.SMTPHost, auth, a.cfg.SMTPFrom, a.cfg.SMTPTo, msg)
 	}
 
-	return smtp.SendMail(addr, auth, a.cfg.SMTPFrom, []string{a.cfg.SMTPTo}, []byte(body))
+	return smtp.SendMail(addr, auth, a.cfg.SMTPFrom, []string{a.cfg.SMTPTo}, msg)
 }
 
 func sendWithStartTLS(addr, host string, auth smtp.Auth, from, to string, body []byte) error {
