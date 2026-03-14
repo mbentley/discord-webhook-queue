@@ -31,6 +31,7 @@ run:
 	docker run --rm \
 		-p 8080:8080 \
 		-v discord-webhook-queue-data:/data \
+		--user 523:523 \
 		--env-file .env \
 		$(IMAGE):dev
 

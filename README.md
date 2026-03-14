@@ -22,7 +22,51 @@ Messages are stored in an embedded SQLite database and survive daemon restarts. 
 
 ## Quick start
 
+The image runs as UID/GID `523:523` by default. Before starting the container, create the data directory on the host and set ownership to match:
+
 ```bash
+mkdir -p /path/to/data
+chown 523:523 /path/to/data
+```
+
+Then start the container with a bind mount:
+
+```bash
+docker run -d \
+  --name discord-webhook-queue \
+  -p 8080:8080 \
+  -v /path/to/data:/data \
+  mbentley/discord-webhook-queue
+```
+
+### Running as a different user
+
+Override the default user at runtime with `--user`. Set the host directory ownership to match:
+
+```bash
+mkdir -p /path/to/data
+chown 1000:1000 /path/to/data
+
+docker run -d \
+  --name discord-webhook-queue \
+  -p 8080:8080 \
+  -v /path/to/data:/data \
+  --user 1000:1000 \
+  mbentley/discord-webhook-queue
+```
+
+### Using a named volume
+
+Named volumes are also supported. Docker creates the volume directory as root, so you will need to set ownership before the daemon starts or the database write will fail. One way to do this is with a one-off container:
+
+```bash
+docker volume create discord-webhook-queue-data
+docker run --rm \
+  -v discord-webhook-queue-data:/data \
+  --user root \
+  mbentley/discord-webhook-queue \
+  chown 523:523 /data
+
 docker run -d \
   --name discord-webhook-queue \
   -p 8080:8080 \
@@ -37,7 +81,7 @@ All configuration is via environment variables. All are optional.
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | Address and port to listen on |
-| `DB_PATH` | `/data/queue.db` | Path to SQLite database file (should be on a named volume) |
+| `DB_PATH` | `/data/queue.db` | Path to SQLite database file (must be on a persistent bind mount or volume) |
 | `RETRY_INTERVAL_SECONDS` | `30` | Seconds between delivery attempts in probe mode (min: 5, max: 300) |
 | `AUTH_TOKEN` | _(disabled)_ | Static token required on `/status` and `/metrics` requests |
 | `AUTH_HEADER` | `X-Auth-Token` | Header name checked for the auth token |
@@ -54,23 +98,28 @@ Email alerts fire after 15 minutes of sustained delivery failure, then every 24 
 
 ### Docker Compose example
 
+Create and chown the data directory before starting:
+
+```bash
+mkdir -p /path/to/data
+chown 523:523 /path/to/data
+```
+
 ```yaml
 services:
   discord-webhook-queue:
     image: mbentley/discord-webhook-queue
+    user: "523:523"
     ports:
       - "8080:8080"
     volumes:
-      - queue-data:/data
+      - /path/to/data:/data
     environment:
       SMTP_HOST: mail.example.com
       SMTP_FROM: discord-webhook-queue@example.com
       SMTP_TO: alerts@example.com
       ALERT_HOST_LABEL: my-server
     restart: unless-stopped
-
-volumes:
-  queue-data:
 ```
 
 ## Endpoints

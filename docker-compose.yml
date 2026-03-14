@@ -5,6 +5,7 @@ services:
       platforms:
         - linux/arm64
     image: discord-webhook-queue:dev
+    user: "523:523"
     ports:
       - "8080:8080"
     volumes:

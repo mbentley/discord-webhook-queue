@@ -14,9 +14,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 FROM mbentley/alpine:latest
 
-RUN apk add --no-cache ca-certificates && mkdir -p /data
+RUN apk add --no-cache ca-certificates
 COPY --from=builder /build/discord-webhook-queue /usr/local/bin/discord-webhook-queue
 
+USER 523:523
 VOLUME ["/data"]
 EXPOSE 8080
 ENTRYPOINT ["discord-webhook-queue"]
