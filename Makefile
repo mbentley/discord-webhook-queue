@@ -1,7 +1,17 @@
 IMAGE     := discord-webhook-queue
 GO_IMAGE  := golang:1.26-alpine
 
-.PHONY: mod-tidy build-dev build-prod run clean
+.PHONY: help mod-tidy build-dev build-prod run clean
+
+help:
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Targets:"
+	@echo "  mod-tidy    Generate go.sum (run once after cloning if go.sum is missing)"
+	@echo "  build-dev   Build image for local dev/test (native ARM64)"
+	@echo "  build-prod  Build image for production (cross-compile to linux/amd64)"
+	@echo "  run         Build and run the container locally on port 8080"
+	@echo "  clean       Remove built images and data volume"
 
 # Generate go.sum — run this once after cloning if go.sum is missing.
 mod-tidy:
