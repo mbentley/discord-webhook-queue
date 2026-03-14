@@ -164,11 +164,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		rr := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rr, r)
 		slog.Info("http response",
-			"method", r.Method,
-			"path", r.URL.Path,
 			"status", rr.status,
 			"duration", time.Since(start),
-			"remote_addr", r.RemoteAddr,
 		)
 	})
 }
