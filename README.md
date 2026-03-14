@@ -103,6 +103,36 @@ volumes:
 | `discord_queue_retry_total` | counter | Total retries including rate-limit retries |
 | `discord_queue_healthy` | gauge | `1` = healthy, `0` = probing |
 
+## nginx reverse proxy
+
+When running behind nginx for SSL termination, a few settings matter:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name discord-queue.example.com;
+
+    # Grafana image attachments can be several MB
+    client_max_body_size 20m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+
+        # Use HTTP/1.1 to upstream to enable keep-alive
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Give large uploads room to complete
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+Note: nginx strips non-standard `Expect` headers before proxying, so the daemon's built-in workaround for discord.sh is redundant (but harmless) when behind nginx.
+
 ## Building from source
 
 Requires Docker with buildx. No local Go installation needed.
