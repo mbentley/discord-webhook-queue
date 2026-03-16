@@ -48,6 +48,7 @@ Startup sequence in `main.go`:
 | `GET` | `/` | No | Plain-text endpoint listing |
 | `POST` | `/webhooks/{id}/{token}` | **Never** | Ingest — accepts `application/json` and `multipart/form-data` |
 | `GET` | `/status` | Optional | JSON: state, queue_depth, last_failure_at |
+| `GET` | `/queue` | Optional | JSON array of queued messages; token and payload omitted; empty queue returns `[]` |
 | `GET` | `/metrics` | Optional | Prometheus exposition format |
 | `POST` | `/alert/test` | Optional | Send a test SMTP alert |
 | `DELETE` | `/queue/{id}` | Optional | Remove a specific message by ID; `404` if not found or in_flight |

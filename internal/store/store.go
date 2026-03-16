@@ -172,6 +172,52 @@ func (s *Store) MarkSent(id int64) error {
 	return err
 }
 
+// QueueItem is a redacted view of a queued message, safe to expose via the API.
+// webhook_token and payload are intentionally omitted.
+type QueueItem struct {
+	ID          int64      `json:"id"`
+	ReceivedAt  time.Time  `json:"received_at"`
+	WebhookID   string     `json:"webhook_id"`
+	Status      string     `json:"status"`
+	RetryCount  int        `json:"retry_count"`
+	LastError   string     `json:"last_error,omitempty"`
+	LastAttempt *time.Time `json:"last_attempt,omitempty"`
+}
+
+// ListQueue returns all messages currently in the queue, ordered oldest first.
+func (s *Store) ListQueue() ([]QueueItem, error) {
+	rows, err := s.db.Query(`
+		SELECT id, received_at, webhook_id, status,
+		       retry_count, COALESCE(last_error, ''), last_attempt
+		FROM messages
+		ORDER BY received_at ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list queue: %w", err)
+	}
+	defer rows.Close()
+
+	var items []QueueItem
+	for rows.Next() {
+		var item QueueItem
+		var lastAttempt sql.NullTime
+		if err := rows.Scan(
+			&item.ID, &item.ReceivedAt, &item.WebhookID, &item.Status,
+			&item.RetryCount, &item.LastError, &lastAttempt,
+		); err != nil {
+			return nil, fmt.Errorf("scan queue item: %w", err)
+		}
+		if lastAttempt.Valid {
+			item.LastAttempt = &lastAttempt.Time
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []QueueItem{}
+	}
+	return items, rows.Err()
+}
+
 // Delete removes a single message by ID regardless of status, except in_flight.
 // Returns true if a row was deleted, false if the ID was not found or is in_flight.
 func (s *Store) Delete(id int64) (bool, error) {

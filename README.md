@@ -129,10 +129,27 @@ services:
 | `GET /` | Info page listing available endpoints. |
 | `POST /webhooks/{id}/{token}` | Enqueue a Discord webhook message. Accepts `application/json` and `multipart/form-data`. Returns 204. |
 | `GET /status` | Returns daemon state, queue depth, and last failure time as JSON. Always 200. |
+| `GET /queue` | Returns all queued messages as a JSON array. Webhook tokens and payloads are omitted. Empty queue returns `[]`. |
 | `GET /metrics` | Prometheus metrics. Scrape with Telegraf `inputs.prometheus` or any compatible collector. |
 | `POST /alert/test` | Send a test alert email to verify SMTP configuration. Returns 200 on success, 503 if SMTP is not configured. |
 | `DELETE /queue/{id}` | Remove a specific queued message by ID. Returns 204 on success, 404 if not found or currently in_flight. |
 | `DELETE /queue` | Remove all queued messages that are not currently in_flight. Returns `{"deleted": N}`. |
+
+### Queue response
+
+`GET /queue` returns a JSON array of queued messages. Fields included:
+
+| Field | Description |
+|---|---|
+| `id` | Message ID — use this with `DELETE /queue/{id}` |
+| `received_at` | When the message was enqueued |
+| `webhook_id` | The Discord channel identifier from the webhook URL |
+| `status` | `pending` or `in_flight` |
+| `retry_count` | Number of failed delivery attempts so far |
+| `last_error` | Error from the most recent attempt (omitted if never attempted) |
+| `last_attempt` | Timestamp of the most recent attempt (omitted if never attempted) |
+
+Webhook tokens and message payloads are never included in this response.
 
 ### Status response
 

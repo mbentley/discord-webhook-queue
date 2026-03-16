@@ -53,6 +53,9 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 		mux.HandleFunc("POST /alert/test", func(w http.ResponseWriter, r *http.Request) {
 			srv.authMiddleware(http.HandlerFunc(srv.handleAlertTest)).ServeHTTP(w, r)
 		})
+		mux.HandleFunc("GET /queue", func(w http.ResponseWriter, r *http.Request) {
+			srv.authMiddleware(http.HandlerFunc(srv.handleListQueue)).ServeHTTP(w, r)
+		})
 		mux.HandleFunc("DELETE /queue/{id}", func(w http.ResponseWriter, r *http.Request) {
 			srv.authMiddleware(http.HandlerFunc(srv.handleDeleteMessage)).ServeHTTP(w, r)
 		})
@@ -63,6 +66,7 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 		mux.Handle("GET /metrics", promhttp.Handler())
 		mux.HandleFunc("GET /status", srv.handleStatus)
 		mux.HandleFunc("POST /alert/test", srv.handleAlertTest)
+		mux.HandleFunc("GET /queue", srv.handleListQueue)
 		mux.HandleFunc("DELETE /queue/{id}", srv.handleDeleteMessage)
 		mux.HandleFunc("DELETE /queue", srv.handleClearQueue)
 	}
@@ -240,17 +244,10 @@ type statusResponse struct {
 	LastFailureAt *time.Time `json:"last_failure_at"`
 }
 
-// handleRoot returns a plain-text info page listing available endpoints.
+// handleRoot serves the interactive UI page.
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "discord-webhook-queue\n\n")
-	fmt.Fprintf(w, "Endpoints:\n")
-	fmt.Fprintf(w, "  POST   /webhooks/{id}/{token}   Enqueue a Discord webhook message\n")
-	fmt.Fprintf(w, "  GET    /status                  Queue state and depth (JSON)\n")
-	fmt.Fprintf(w, "  GET    /metrics                 Prometheus metrics\n")
-	fmt.Fprintf(w, "  POST   /alert/test              Send a test alert email (requires SMTP config)\n")
-	fmt.Fprintf(w, "  DELETE /queue/{id}              Remove a specific queued message by ID\n")
-	fmt.Fprintf(w, "  DELETE /queue                   Remove all queued messages (excludes in_flight)\n")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, renderUI(s.cfg.AuthHeader))
 }
 
 // handleAlertTest sends a test alert email and returns the result as JSON.
@@ -269,6 +266,20 @@ func (s *Server) handleAlertTest(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("test alert email sent")
 	fmt.Fprintf(w, `{"ok":true}`)
+}
+
+// handleListQueue returns all queued messages as a JSON array, omitting sensitive fields.
+func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
+	items, err := s.store.ListQueue()
+	if err != nil {
+		slog.Error("failed to list queue", "err", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"failed to list queue"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
 }
 
 // handleDeleteMessage removes a single queued message by ID.
