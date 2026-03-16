@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -169,6 +170,28 @@ func (s *Store) MarkFailed(id int64, errMsg string) error {
 func (s *Store) MarkSent(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM messages WHERE id = ?`, id)
 	return err
+}
+
+// Delete removes a single message by ID regardless of status, except in_flight.
+// Returns true if a row was deleted, false if the ID was not found or is in_flight.
+func (s *Store) Delete(id int64) (bool, error) {
+	res, err := s.db.Exec(`DELETE FROM messages WHERE id = ? AND status != 'in_flight'`, id)
+	if err != nil {
+		return false, fmt.Errorf("delete message: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// DeleteAllPending removes all messages that are not in_flight.
+// Returns the number of rows deleted.
+func (s *Store) DeleteAllPending(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM messages WHERE status != 'in_flight'`)
+	if err != nil {
+		return 0, fmt.Errorf("delete all pending: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // QueueDepth returns the total number of messages not yet delivered.

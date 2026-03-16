@@ -50,6 +50,8 @@ Startup sequence in `main.go`:
 | `GET` | `/status` | Optional | JSON: state, queue_depth, last_failure_at |
 | `GET` | `/metrics` | Optional | Prometheus exposition format |
 | `POST` | `/alert/test` | Optional | Send a test SMTP alert |
+| `DELETE` | `/queue/{id}` | Optional | Remove a specific message by ID; `404` if not found or in_flight |
+| `DELETE` | `/queue` | Optional | Remove all non-in_flight messages; returns `{"deleted": N}` |
 
 Auth is a static token in a configurable header (`X-Auth-Token` by default). The ingest endpoint is **never** auth-gated — senders like `discord.sh` and Grafana cannot inject custom headers.
 

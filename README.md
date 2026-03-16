@@ -131,6 +131,8 @@ services:
 | `GET /status` | Returns daemon state, queue depth, and last failure time as JSON. Always 200. |
 | `GET /metrics` | Prometheus metrics. Scrape with Telegraf `inputs.prometheus` or any compatible collector. |
 | `POST /alert/test` | Send a test alert email to verify SMTP configuration. Returns 200 on success, 503 if SMTP is not configured. |
+| `DELETE /queue/{id}` | Remove a specific queued message by ID. Returns 204 on success, 404 if not found or currently in_flight. |
+| `DELETE /queue` | Remove all queued messages that are not currently in_flight. Returns `{"deleted": N}`. |
 
 ### Status response
 

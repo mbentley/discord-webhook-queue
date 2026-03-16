@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 	// cannot inject custom headers, so requiring a token here would break them.
 	mux.HandleFunc("POST /webhooks/{id}/{token}", srv.handleIngest)
 
-	// Status, metrics, and alert-test endpoints honour the optional auth token.
+	// Status, metrics, alert-test, and queue management endpoints honour the optional auth token.
 	if cfg.AuthToken != "" {
 		mux.Handle("GET /metrics", srv.authMiddleware(promhttp.Handler()))
 		mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +53,18 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 		mux.HandleFunc("POST /alert/test", func(w http.ResponseWriter, r *http.Request) {
 			srv.authMiddleware(http.HandlerFunc(srv.handleAlertTest)).ServeHTTP(w, r)
 		})
+		mux.HandleFunc("DELETE /queue/{id}", func(w http.ResponseWriter, r *http.Request) {
+			srv.authMiddleware(http.HandlerFunc(srv.handleDeleteMessage)).ServeHTTP(w, r)
+		})
+		mux.HandleFunc("DELETE /queue", func(w http.ResponseWriter, r *http.Request) {
+			srv.authMiddleware(http.HandlerFunc(srv.handleClearQueue)).ServeHTTP(w, r)
+		})
 	} else {
 		mux.Handle("GET /metrics", promhttp.Handler())
 		mux.HandleFunc("GET /status", srv.handleStatus)
 		mux.HandleFunc("POST /alert/test", srv.handleAlertTest)
+		mux.HandleFunc("DELETE /queue/{id}", srv.handleDeleteMessage)
+		mux.HandleFunc("DELETE /queue", srv.handleClearQueue)
 	}
 
 	srv.http = &http.Server{
@@ -236,10 +245,12 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintf(w, "discord-webhook-queue\n\n")
 	fmt.Fprintf(w, "Endpoints:\n")
-	fmt.Fprintf(w, "  POST /webhooks/{id}/{token}   Enqueue a Discord webhook message\n")
-	fmt.Fprintf(w, "  GET  /status                  Queue state and depth (JSON)\n")
-	fmt.Fprintf(w, "  GET  /metrics                 Prometheus metrics\n")
-	fmt.Fprintf(w, "  POST /alert/test              Send a test alert email (requires SMTP config)\n")
+	fmt.Fprintf(w, "  POST   /webhooks/{id}/{token}   Enqueue a Discord webhook message\n")
+	fmt.Fprintf(w, "  GET    /status                  Queue state and depth (JSON)\n")
+	fmt.Fprintf(w, "  GET    /metrics                 Prometheus metrics\n")
+	fmt.Fprintf(w, "  POST   /alert/test              Send a test alert email (requires SMTP config)\n")
+	fmt.Fprintf(w, "  DELETE /queue/{id}              Remove a specific queued message by ID\n")
+	fmt.Fprintf(w, "  DELETE /queue                   Remove all queued messages (excludes in_flight)\n")
 }
 
 // handleAlertTest sends a test alert email and returns the result as JSON.
@@ -258,6 +269,54 @@ func (s *Server) handleAlertTest(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("test alert email sent")
 	fmt.Fprintf(w, `{"ok":true}`)
+}
+
+// handleDeleteMessage removes a single queued message by ID.
+// Returns 204 on success, 404 if not found or currently in_flight, 400 if the ID is not an integer.
+func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	raw := r.PathValue("id")
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"id must be an integer"}`))
+		return
+	}
+
+	deleted, err := s.store.Delete(id)
+	if err != nil {
+		slog.Error("failed to delete message", "id", id, "err", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"failed to delete message"}`))
+		return
+	}
+	if !deleted {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"message not found or currently in_flight"}`))
+		return
+	}
+
+	slog.Info("message deleted", "id", id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleClearQueue removes all queued messages that are not currently in_flight.
+// Returns 200 with a JSON body containing the number of messages removed.
+func (s *Server) handleClearQueue(w http.ResponseWriter, r *http.Request) {
+	n, err := s.store.DeleteAllPending(r.Context())
+	if err != nil {
+		slog.Error("failed to clear queue", "err", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"failed to clear queue"}`))
+		return
+	}
+
+	slog.Info("queue cleared", "deleted", n)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"deleted":%d}`, n)
 }
 
 // handleStatus returns the current daemon state as JSON. Always 200.
