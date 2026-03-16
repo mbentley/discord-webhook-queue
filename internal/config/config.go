@@ -12,14 +12,17 @@ const (
 	maxRetryIntervalSeconds = 300
 	defaultRetrySeconds     = 30
 
-	failureAlertMinutes = 15
-	repeatAlertHours    = 24
+	defaultFailureAlertMinutes = 15
+	minFailureAlertMinutes     = 1
+	maxFailureAlertMinutes     = 1440 // 24 hours
+	repeatAlertHours           = 24
 )
 
 type Config struct {
-	ListenAddr           string
-	DBPath               string
-	RetryIntervalSeconds int
+	ListenAddr              string
+	DBPath                  string
+	RetryIntervalSeconds    int
+	FailureAlertAfterMinutes int
 
 	AuthToken  string
 	AuthHeader string
@@ -37,9 +40,10 @@ type Config struct {
 
 func Load() (*Config, error) {
 	c := &Config{
-		ListenAddr:           getEnv("LISTEN_ADDR", ":8080"),
-		DBPath:               getEnv("DB_PATH", "/data/queue.db"),
-		RetryIntervalSeconds: defaultRetrySeconds,
+		ListenAddr:               getEnv("LISTEN_ADDR", ":8080"),
+		DBPath:                   getEnv("DB_PATH", "/data/queue.db"),
+		RetryIntervalSeconds:     defaultRetrySeconds,
+		FailureAlertAfterMinutes: defaultFailureAlertMinutes,
 		AuthToken:            os.Getenv("AUTH_TOKEN"),
 		AuthHeader:           getEnv("AUTH_HEADER", "X-Auth-Token"),
 		SMTPHost:             os.Getenv("SMTP_HOST"),
@@ -50,6 +54,17 @@ func Load() (*Config, error) {
 		SMTPUsername:         os.Getenv("SMTP_USERNAME"),
 		SMTPPassword:         os.Getenv("SMTP_PASSWORD"),
 		AlertHostLabel:       getEnv("ALERT_HOST_LABEL", hostname()),
+	}
+
+	if v := os.Getenv("FAILURE_ALERT_AFTER_MINUTES"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("FAILURE_ALERT_AFTER_MINUTES must be an integer: %w", err)
+		}
+		if n < minFailureAlertMinutes || n > maxFailureAlertMinutes {
+			return nil, fmt.Errorf("FAILURE_ALERT_AFTER_MINUTES must be between %d and %d", minFailureAlertMinutes, maxFailureAlertMinutes)
+		}
+		c.FailureAlertAfterMinutes = n
 	}
 
 	if v := os.Getenv("RETRY_INTERVAL_SECONDS"); v != "" {
@@ -87,7 +102,7 @@ func (c *Config) SMTPEnabled() bool {
 }
 
 func (c *Config) FailureAlertThreshold() time.Duration {
-	return failureAlertMinutes * time.Minute
+	return time.Duration(c.FailureAlertAfterMinutes) * time.Minute
 }
 
 func (c *Config) RepeatAlertInterval() time.Duration {
