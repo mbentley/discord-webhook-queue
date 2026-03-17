@@ -37,8 +37,10 @@ func New(cfg *config.Config, s *store.Store, e *delivery.Engine, a *alert.Alerte
 
 	mux := http.NewServeMux()
 
-	// Root info page — no auth, reveals nothing sensitive.
+	// Root info page and static assets — no auth, reveal nothing sensitive.
 	mux.HandleFunc("GET /", srv.handleRoot)
+	mux.HandleFunc("GET /favicon.svg", srv.handleFavicon)
+	mux.HandleFunc("GET /favicon.ico", srv.handleFavicon)
 
 	// Ingest endpoint is NEVER auth-gated: senders (discord.sh, Grafana, etc.)
 	// cannot inject custom headers, so requiring a token here would break them.
@@ -248,6 +250,13 @@ type statusResponse struct {
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, renderUI(s.cfg.AuthHeader))
+}
+
+// handleFavicon serves the SVG favicon for both /favicon.svg and /favicon.ico.
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	fmt.Fprint(w, faviconSVG)
 }
 
 // handleAlertTest sends a test alert email and returns the result as JSON.

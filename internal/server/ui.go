@@ -10,12 +10,24 @@ func renderUI(authHeader string) string {
 
 // uiTemplate is a self-contained HTML page with inline CSS and JS.
 // fmt.Sprintf substitutions: %s = auth header label, %q = auth header JS string.
+// faviconSVG is served at /favicon.svg and /favicon.ico.
+// Design: Discord blurple background, white speech bubble, three descending
+// horizontal bars inside representing a draining queue.
+const faviconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#5865F2"/>
+  <path d="M5 6a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-8l-4 5v-5H7a2 2 0 0 1-2-2Z" fill="white"/>
+  <rect x="9" y="9"  width="14" height="2" rx="1" fill="#5865F2"/>
+  <rect x="9" y="13" width="11" height="2" rx="1" fill="#5865F2"/>
+  <rect x="9" y="17" width="8"  height="2" rx="1" fill="#5865F2"/>
+</svg>`
+
 const uiTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>discord-webhook-queue</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; max-width: 800px; }
