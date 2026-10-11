@@ -1,13 +1,14 @@
 IMAGE     := discord-webhook-queue
-GO_IMAGE  := golang:1.26-alpine
+GO_IMAGE  := golang:1.27-alpine
 
-.PHONY: help mod-tidy build-dev build-prod run clean
+.PHONY: help mod-tidy mod-update build-dev build-prod run clean
 
 help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Targets:"
 	@echo "  mod-tidy    Generate go.sum (run once after cloning if go.sum is missing)"
+	@echo "  mod-update  Upgrade all dependencies to latest and tidy go.mod/go.sum"
 	@echo "  build-dev   Build image for local dev/test (native ARM64)"
 	@echo "  build-prod  Build image for production (cross-compile to linux/amd64)"
 	@echo "  run         Build and run the container locally on port 8080"
@@ -16,6 +17,10 @@ help:
 # Generate go.sum — run this once after cloning if go.sum is missing.
 mod-tidy:
 	docker run --rm -v "$(PWD):/build" -w /build $(GO_IMAGE) go mod tidy
+
+# Upgrade all dependencies to their latest versions and tidy.
+mod-update:
+	docker run --rm -v "$(PWD):/build" -w /build $(GO_IMAGE) sh -c "go get -u ./... && go mod tidy"
 
 # Build for local dev/test — native build on ARM Mac, produces linux/arm64.
 build-dev:
